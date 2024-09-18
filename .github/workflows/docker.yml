@@ -1,0 +1,57 @@
+name: Docker
+
+on:
+  workflow_dispatch:
+    inputs:
+      images:
+        description: 'Input docker image names separated via comma'
+        required: true
+        default: 'hello-world:latest,ubuntu:latest'
+      registry:
+        description: 'Input your registry name'
+        required: false
+        default: 'registry.ynu.edu.cn'
+      username:
+        description: 'Input your username for your registry if required'
+        required: false
+        default: ''
+      password:
+        description: 'Input your password for your registry if required'
+        required: false
+        default: ''
+
+jobs:
+
+  pull_and_push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Pull Docker Images from Docker Hub
+      run: |
+        images="${{ github.event.inputs.images }}"
+        IFS=',' read -r -a image_array <<< "$images"
+        for image in "${image_array[@]}"; do
+          echo docker pull "${image}"
+          docker pull "${image}"
+          echo docker tag "${image}" "${{ github.event.inputs.registry }}"/"${image}"
+          docker tag "${image}" "${{ github.event.inputs.registry }}"/"${image}"
+        done
+      
+    - name: Push Docker Images to Registry ${{ github.event.inputs.registry }}
+      run: |
+        # if username and password is not empty, docker login the registry
+        if [ -n "${{ github.event.inputs.username }}" ] && [ -n "${{ github.event.inputs.password }}" ]; then
+          echo docker login -u "${{ github.event.inputs.username }}" "${{ github.event.inputs.registry }}"
+          docker login -u "${{ github.event.inputs.username }}" -p "${{ github.event.inputs.password }}" "${{ github.event.inputs.registry }}"
+        fi
+        images="${{ github.event.inputs.images }}"
+        IFS=',' read -r -a image_array <<< "$images"
+        for image in "${image_array[@]}"; do
+          echo docker push "${{ github.event.inputs.registry }}"/"${image}"
+          docker push "${{ github.event.inputs.registry }}"/"${image}"
+        done
