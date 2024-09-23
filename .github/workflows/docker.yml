@@ -10,13 +10,13 @@ on:
       registry:
         description: 'Input your registry name'
         required: false
-        default: 'registry.ynu.edu.cn'
+        default: 'registry.app.ynu.edu.cn'
       username:
-        description: 'Input your username for your registry if required'
+        description: 'Input your username for your registry if required, override the DOCKER_USERNAME environment variable if provided'
         required: false
         default: ''
       password:
-        description: 'Input your password for your registry if required'
+        description: 'Input your password for your registry if required, override the DOCKER_PASSWORD environment variable if provided'
         required: false
         default: ''
 
@@ -44,10 +44,13 @@ jobs:
       
     - name: Push Docker Images to Registry ${{ github.event.inputs.registry }}
       run: |
+        # set DOCKER_USERNAME and DOCKER_PASSWORD from inputs if provided, fallback to environment variables
+        DOCKER_USERNAME="${{ github.event.inputs.username != '' && github.event.inputs.username || secrets.DOCKER_USERNAME }}"
+        DOCKER_PASSWORD="${{ github.event.inputs.password != '' && github.event.inputs.password || secrets.DOCKER_PASSWORD }}"
         # if username and password is not empty, docker login the registry
-        if [ -n "${{ github.event.inputs.username }}" ] && [ -n "${{ github.event.inputs.password }}" ]; then
-          echo docker login -u "${{ github.event.inputs.username }}" "${{ github.event.inputs.registry }}"
-          docker login -u "${{ github.event.inputs.username }}" -p "${{ github.event.inputs.password }}" "${{ github.event.inputs.registry }}"
+        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ]; then
+          echo docker login -u "$DOCKER_USERNAME" "${{ github.event.inputs.registry }}"
+          docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" "${{ github.event.inputs.registry }}"
         fi
         images="${{ github.event.inputs.images }}"
         IFS=',' read -r -a image_array <<< "$images"
