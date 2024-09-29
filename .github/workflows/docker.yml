@@ -28,6 +28,26 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    - name: Before Cleanup space
+      run: |
+        mount
+        df -h
+
+    - name: Maximize build space
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 512
+        swap-size-mb: 1024
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+
+    - name: After Cleanup space
+      run: |
+        mount
+        df -h
+
     - name: Docker Setup Buildx
       uses: docker/setup-buildx-action@v3
       
