@@ -7,6 +7,10 @@ on:
         description: 'Input docker image names separated via comma'
         required: true
         default: 'hello-world:latest,ubuntu:latest'
+      platforms:
+        description: 'Input the platforms separated via comma for the docker images, currently support linux/amd64, linux/386 and linux/arm64'
+        required: false
+        default: 'linux/amd64'
       registry:
         description: 'Input your registry name'
         required: false
@@ -54,12 +58,19 @@ jobs:
     - name: Pull Docker Images from Docker Hub
       run: |
         images="${{ github.event.inputs.images }}"
+        platforms="${{ github.event.inputs.platforms }}"
         IFS=',' read -r -a image_array <<< "$images"
+        IFS=',' read -r -a platform_array <<< "$platforms"
         for image in "${image_array[@]}"; do
-          echo docker pull "${image}"
-          docker pull "${image}"
-          echo docker tag "${image}" "${{ github.event.inputs.registry }}"/"${image}"
-          docker tag "${image}" "${{ github.event.inputs.registry }}"/"${image}"
+          for platform in "${platform_array[@]}"; do
+            echo docker pull "${image}"
+            docker pull "${image}" --platform "${platform}"
+            echo docker tag "${image}" "${{ github.event.inputs.registry }}/${image}-${platform}"
+            # tag the images with suffix -platform for the latter docker manifest create/push to just handle specific platforms
+            # This can also simplify by just only execute `docker buildx imagetools create --tag registry.app.ynu.edu.cn/nginx:latest nginx:latest`
+            # But this will mirror all the platforms like linux/amd64, linux/arm/v5, linux/arm/v7, linux/arm64/v8, linux/386, linux/mips64le, linux/ppc64le, linux/s390x
+            docker tag "${image}" "${{ github.event.inputs.registry }}/${image}-${platform}"
+          done
         done
       
     - name: Push Docker Images to Registry ${{ github.event.inputs.registry }}
@@ -73,8 +84,23 @@ jobs:
           docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" "${{ github.event.inputs.registry }}"
         fi
         images="${{ github.event.inputs.images }}"
+        platforms="${{ github.event.inputs.platforms }}"
         IFS=',' read -r -a image_array <<< "$images"
+        IFS=',' read -r -a platform_array <<< "$platforms"
         for image in "${image_array[@]}"; do
-          echo docker push "${{ github.event.inputs.registry }}"/"${image}"
-          docker push "${{ github.event.inputs.registry }}"/"${image}"
+          for platform in "${platform_array[@]}"; do
+            echo docker push "${{ github.event.inputs.registry }}/${image}-${platform}"
+            docker push "${{ github.event.inputs.registry }}/${image}-${platform}"
+          done
+        done
+        # enable buildx to support multi-platform docker images
+        docker buildx use default
+        for image in "${image_array[@]}"; do
+          cmd="docker manifest create ${{ github.event.inputs.registry }}/${image}"
+          for platform in "${platforms[@]}"; do
+            cmd+=" --amend ${{ github.event.inputs.registry }}/${image}-${platform}"
+          done
+          echo "docker manifest create: $cmd"
+          $cmd
+          docker manifest push ${{ github.event.inputs.registry }}/${image}
         done
