@@ -1,0 +1,53 @@
+name: Docker_Pusher_MultiPlatform
+
+on:
+  workflow_dispatch:
+    inputs:
+      images:
+        description: 'Input docker image names separated via comma'
+        required: true
+        default: 'hello-world:latest,ubuntu:latest'
+      registry:
+        description: 'Input your registry name'
+        required: false
+        default: 'registry.app.ynu.edu.cn'
+      username:
+        description: 'Input your username for your registry if required, override the DOCKER_USERNAME environment variable if provided'
+        required: false
+        default: ''
+      password:
+        description: 'Input your password for your registry if required, override the DOCKER_PASSWORD environment variable if provided'
+        required: false
+        default: ''
+
+jobs:
+
+  pull_and_push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Pull/Push muti-platform Docker Images from Docker Hub
+      run: |
+        # set DOCKER_USERNAME and DOCKER_PASSWORD from inputs if provided, fallback to environment variables
+        DOCKER_USERNAME="${{ github.event.inputs.username != '' && github.event.inputs.username || secrets.DOCKER_USERNAME }}"
+        DOCKER_PASSWORD="${{ github.event.inputs.password != '' && github.event.inputs.password || secrets.DOCKER_PASSWORD }}"
+        # if username and password is not empty, docker login the registry
+        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_PASSWORD" ]; then
+          echo docker login -u "$DOCKER_USERNAME" "${{ github.event.inputs.registry }}"
+          docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" "${{ github.event.inputs.registry }}"
+        fi
+
+        images="${{ github.event.inputs.images }}"
+        IFS=',' read -r -a image_array <<< "$images"
+        docker buildx use default
+        for image in "${image_array[@]}"; do
+          echo docker buildx imagetools create --tag ${{ github.event.inputs.registry }}/${image} ${image}
+          docker buildx imagetools create --tag ${{ github.event.inputs.registry }}/${image} ${image}
+          echo docker buildx imagetools inspect ${{ github.event.inputs.registry }}/${image}
+          docker buildx imagetools inspect ${{ github.event.inputs.registry }}/${image}
+        done
