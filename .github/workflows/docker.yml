@@ -67,6 +67,8 @@ jobs:
           for platform in "${platform_array[@]}"; do
             echo docker pull "${image}"
             docker pull "${image}" --platform "${platform}"
+            # replace / with -, or image name like hello-world:latest-linux/amd64 is not a valid repository/tag: invalid reference format
+            platform=${platform//\//-}
             echo docker tag "${image}" "${{ github.event.inputs.registry }}/${image}-${platform}"
             # tag the images with suffix -platform for the latter docker manifest create/push to just handle specific platforms
             # This can also simplify by just only execute `docker buildx imagetools create --tag registry.app.ynu.edu.cn/nginx:latest nginx:latest`
@@ -91,6 +93,7 @@ jobs:
         IFS=',' read -r -a platform_array <<< "$platforms"
         for image in "${image_array[@]}"; do
           for platform in "${platform_array[@]}"; do
+            platform=${platform//\//-}
             echo docker push "${{ github.event.inputs.registry }}/${image}-${platform}"
             docker push "${{ github.event.inputs.registry }}/${image}-${platform}"
           done
@@ -99,7 +102,8 @@ jobs:
         docker buildx use default
         for image in "${image_array[@]}"; do
           cmd="docker manifest create ${{ github.event.inputs.registry }}/${image}"
-          for platform in "${platforms[@]}"; do
+          for platform in "${platform_array[@]}"; do
+            platform=${platform//\//-}
             cmd+=" --amend ${{ github.event.inputs.registry }}/${image}-${platform}"
           done
           echo "docker manifest create: $cmd"
